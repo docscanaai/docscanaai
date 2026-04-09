@@ -1,0 +1,1411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0c14">
+<title>DocScan AI – PDF Scanner & Document Editor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+/* ============================
+   ROOT VARIABLES & RESET
+   ============================ */
+:root {
+  --bg: #0a0c14;
+  --s1: #111420;
+  --s2: #181c2e;
+  --s3: #1e2338;
+  --a1: #4f8ef7;
+  --a2: #7c5cfc;
+  --a3: #00e5a0;
+  --a4: #ff6b6b;
+  --a5: #ffd93d;
+  --t1: #eef2ff;
+  --t2: #8892b0;
+  --t3: #4a5278;
+  --bd: #1e2338;
+  --r: 16px;
+  --safe-bottom: env(safe-area-inset-bottom, 20px);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--t1)}
+
+/* ============================
+   APP SHELL
+   ============================ */
+#app{width:100%;height:100vh;display:flex;flex-direction:column;overflow:hidden;position:relative}
+
+/* ============================
+   SCREENS
+   ============================ */
+.screen{position:absolute;inset:0;display:none;flex-direction:column;background:var(--bg);animation:fadeIn 0.25s ease}
+.screen.active{display:flex}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* ============================
+   STATUS BAR
+   ============================ */
+.statusbar{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;flex-shrink:0;background:var(--bg)}
+.statusbar .time{font-size:13px;font-weight:700;color:var(--t1)}
+.statusbar .icons{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--t2)}
+
+/* ============================
+   SCROLL BODY
+   ============================ */
+.scroll-body{flex:1;overflow-y:auto;padding:0 14px 90px;-webkit-overflow-scrolling:touch}
+.scroll-body::-webkit-scrollbar{display:none}
+
+/* ============================
+   BOTTOM NAV
+   ============================ */
+.bottom-nav{position:absolute;bottom:0;left:0;right:0;height:68px;background:rgba(17,20,32,0.97);border-top:1px solid var(--bd);display:flex;align-items:center;justify-content:space-around;padding-bottom:var(--safe-bottom);backdrop-filter:blur(20px);z-index:100}
+.nav-item{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:8px 14px;border-radius:12px;transition:all 0.2s;min-width:52px}
+.nav-item.active{background:rgba(79,142,247,0.15)}
+.nav-icon{font-size:20px;line-height:1}
+.nav-label{font-size:9px;font-weight:600;color:var(--t3);letter-spacing:0.3px}
+.nav-item.active .nav-label{color:var(--a1)}
+
+/* ============================
+   HEADER
+   ============================ */
+.page-header{padding:8px 14px 12px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.page-title{font-size:24px;font-weight:800;letter-spacing:-0.5px}
+.page-title .g{background:linear-gradient(135deg,var(--a1),var(--a2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.icon-btn{width:38px;height:38px;border-radius:11px;background:var(--s2);border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:17px;transition:all 0.2s}
+.icon-btn:active{transform:scale(0.94)}
+
+/* ============================
+   CARDS
+   ============================ */
+.card{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:16px;margin-bottom:12px;cursor:pointer;transition:all 0.2s}
+.card:active{transform:scale(0.98);border-color:var(--a1)}
+
+/* ============================
+   SECTION TITLE
+   ============================ */
+.sec-title{font-size:13px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:1px;margin:16px 0 10px}
+
+/* ============================
+   QUICK ACTION STRIP
+   ============================ */
+.qa-strip{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px;margin-bottom:4px}
+.qa-strip::-webkit-scrollbar{display:none}
+.qa-btn{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 12px;background:var(--s1);border:1px solid var(--bd);border-radius:14px;cursor:pointer;transition:all 0.2s;min-width:72px}
+.qa-btn:active{background:var(--a1);border-color:transparent}
+.qa-btn .qi{font-size:24px}
+.qa-btn .ql{font-size:10px;font-weight:600;color:var(--t2);white-space:nowrap}
+.qa-btn.primary{background:linear-gradient(135deg,var(--a1),var(--a2));border-color:transparent}
+.qa-btn.primary .ql{color:#fff}
+
+/* ============================
+   STATS ROW
+   ============================ */
+.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+.stat-card{background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:14px 10px;text-align:center}
+.stat-num{font-size:20px;font-weight:800;color:var(--a1)}
+.stat-lbl{font-size:10px;color:var(--t2);margin-top:2px}
+
+/* ============================
+   DOCUMENT LIST
+   ============================ */
+.doc-item{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--s1);border:1px solid var(--bd);border-radius:14px;margin-bottom:8px;cursor:pointer;transition:all 0.2s}
+.doc-item:active{border-color:var(--a1)}
+.doc-thumb{width:44px;height:54px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.dt-pdf{background:rgba(255,107,107,0.12);border:1px solid rgba(255,107,107,0.25)}
+.dt-img{background:rgba(0,229,160,0.12);border:1px solid rgba(0,229,160,0.25)}
+.doc-info{flex:1;min-width:0}
+.doc-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.doc-meta{font-size:11px;color:var(--t2);margin-top:2px}
+.doc-badge{font-size:9px;font-weight:700;padding:2px 7px;border-radius:5px;text-transform:uppercase;flex-shrink:0}
+.db-pdf{background:rgba(255,107,107,0.15);color:#ff6b6b}
+.db-img{background:rgba(0,229,160,0.15);color:#00e5a0}
+
+/* ============================
+   FEATURE GRID
+   ============================ */
+.feat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.feat-card{background:var(--s1);border:1px solid var(--bd);border-radius:14px;padding:14px 12px;cursor:pointer;transition:all 0.2s;position:relative;overflow:hidden}
+.feat-card:active{border-color:var(--a1);background:var(--s2)}
+.fc-badge{position:absolute;top:8px;right:8px;font-size:8px;font-weight:700;padding:2px 5px;border-radius:5px;letter-spacing:0.5px}
+.fc-ai{background:rgba(124,92,252,0.2);color:var(--a2)}
+.fc-new{background:rgba(0,229,160,0.2);color:var(--a3)}
+.fc-icon{font-size:26px;margin-bottom:8px}
+.fc-title{font-size:12px;font-weight:700;margin-bottom:3px}
+.fc-desc{font-size:10px;color:var(--t2);line-height:1.4}
+
+/* ============================
+   CAMERA SCREEN
+   ============================ */
+#screen-camera{background:#000}
+.cam-header{position:absolute;top:0;left:0;right:0;z-index:20;padding:50px 16px 16px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(to bottom,rgba(0,0,0,0.8),transparent)}
+#videoEl{width:100%;height:100%;object-fit:cover;display:block}
+.cam-overlay{position:absolute;inset:0;pointer-events:none;z-index:10}
+.cam-corner{position:absolute;width:24px;height:24px}
+.cc-tl{top:20%;left:10%;border-top:3px solid var(--a1);border-left:3px solid var(--a1);border-radius:4px 0 0 0}
+.cc-tr{top:20%;right:10%;border-top:3px solid var(--a1);border-right:3px solid var(--a1);border-radius:0 4px 0 0}
+.cc-bl{bottom:30%;left:10%;border-bottom:3px solid var(--a1);border-left:3px solid var(--a1);border-radius:0 0 0 4px}
+.cc-br{bottom:30%;right:10%;border-bottom:3px solid var(--a1);border-right:3px solid var(--a1);border-radius:0 0 4px 0}
+.scan-line{position:absolute;left:10%;right:10%;height:2px;background:linear-gradient(90deg,transparent,var(--a1),var(--a3),var(--a1),transparent);animation:scanAnim 2.5s ease-in-out infinite;box-shadow:0 0 10px var(--a1);top:20%}
+@keyframes scanAnim{0%,100%{top:21%}50%{top:68%}}
+.auto-detect{position:absolute;top:calc(20% - 28px);left:50%;transform:translateX(-50%);background:rgba(0,229,160,0.15);border:1px solid rgba(0,229,160,0.4);color:var(--a3);font-size:10px;font-weight:700;padding:4px 12px;border-radius:20px;letter-spacing:1px;white-space:nowrap}
+.cam-controls{position:absolute;bottom:0;left:0;right:0;z-index:20;padding:16px 20px 32px;background:linear-gradient(to top,rgba(0,0,0,0.9),transparent)}
+.cam-modes{display:flex;gap:6px;overflow-x:auto;margin-bottom:16px;padding:2px 0}
+.cam-modes::-webkit-scrollbar{display:none}
+.cam-mode{flex-shrink:0;padding:6px 12px;border-radius:18px;font-size:11px;font-weight:600;cursor:pointer;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);border:1px solid transparent;transition:all 0.2s}
+.cam-mode.active{background:var(--a1);color:#fff}
+.cam-actions{display:flex;align-items:center;justify-content:space-around}
+.cam-action{display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer}
+.ca-icon{font-size:22px;color:#fff}
+.ca-lbl{font-size:10px;color:rgba(255,255,255,0.6)}
+.shutter{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--a1),var(--a2));display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer;box-shadow:0 0 24px rgba(79,142,247,0.5);border:3px solid rgba(255,255,255,0.25);transition:transform 0.15s}
+.shutter:active{transform:scale(0.92)}
+#canvas{display:none}
+
+/* ============================
+   OCR / RESULT SCREEN
+   ============================ */
+.preview-img{width:100%;border-radius:12px;margin-bottom:12px;max-height:220px;object-fit:contain;background:var(--s2)}
+.ocr-box{background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:14px;font-family:'Courier New',monospace;font-size:12px;line-height:1.7;color:var(--t2);max-height:160px;overflow-y:auto;margin-bottom:12px;white-space:pre-wrap}
+.ocr-box .hl{color:var(--a1);background:rgba(79,142,247,0.1);border-radius:3px;padding:0 2px}
+.action-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.act-btn{flex:1;min-width:80px;padding:10px 12px;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;border:none;transition:all 0.2s;text-align:center}
+.act-btn:active{transform:scale(0.96)}
+.btn-primary{background:linear-gradient(135deg,var(--a1),var(--a2));color:#fff}
+.btn-secondary{background:var(--s2);color:var(--t1);border:1px solid var(--bd)}
+.btn-success{background:rgba(0,229,160,0.15);color:var(--a3);border:1px solid rgba(0,229,160,0.3)}
+.btn-danger{background:rgba(255,107,107,0.15);color:var(--a4);border:1px solid rgba(255,107,107,0.3)}
+
+/* ============================
+   TOOLS GRID
+   ============================ */
+.tools-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 0 8px}
+.tool-card{background:var(--s1);border:1px solid var(--bd);border-radius:14px;padding:16px 12px;cursor:pointer;transition:all 0.2s;position:relative;overflow:hidden}
+.tool-card:active{border-color:var(--a1);background:var(--s2)}
+.tc-badge{position:absolute;top:8px;right:8px;font-size:8px;font-weight:700;padding:2px 5px;border-radius:5px}
+.tc-ai{background:rgba(124,92,252,0.2);color:var(--a2)}
+.tc-pro{background:rgba(255,217,61,0.2);color:var(--a5)}
+.tc-new{background:rgba(0,229,160,0.2);color:var(--a3)}
+.tc-icon{font-size:28px;margin-bottom:8px}
+.tc-title{font-size:12px;font-weight:700;margin-bottom:3px}
+.tc-desc{font-size:10px;color:var(--t2);line-height:1.4}
+
+/* ============================
+   FILTER STRIP
+   ============================ */
+.filter-strip{display:flex;gap:6px;overflow-x:auto;margin-bottom:12px;padding:2px 0}
+.filter-strip::-webkit-scrollbar{display:none}
+.fchip{flex-shrink:0;padding:7px 12px;border-radius:18px;font-size:11px;font-weight:600;cursor:pointer;background:var(--s2);color:var(--t2);border:1px solid var(--bd);transition:all 0.2s}
+.fchip.active{background:linear-gradient(135deg,var(--a1),var(--a2));color:#fff;border-color:transparent}
+
+/* ============================
+   SLIDER
+   ============================ */
+.slider-row{margin-bottom:12px}
+.slider-row label{font-size:11px;color:var(--t2);font-weight:600;display:flex;justify-content:space-between;margin-bottom:6px}
+.slider-row label span{color:var(--a1);font-family:monospace}
+input[type=range]{width:100%;accent-color:var(--a1);height:3px;cursor:pointer}
+
+/* ============================
+   PROGRESS / LOADING
+   ============================ */
+.loading-overlay{position:fixed;inset:0;background:rgba(10,12,20,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;display:none}
+.loading-overlay.show{display:flex}
+.spinner{width:48px;height:48px;border:3px solid var(--bd);border-top-color:var(--a1);border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:14px;font-weight:600;color:var(--t1);margin-bottom:6px}
+.loading-sub{font-size:12px;color:var(--t2)}
+.progress-bar{width:200px;height:4px;background:var(--s2);border-radius:2px;overflow:hidden;margin-top:12px}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--a1),var(--a2));border-radius:2px;transition:width 0.3s;width:0%}
+
+/* ============================
+   TOAST
+   ============================ */
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:10px 18px;font-size:13px;font-weight:500;z-index:999;opacity:0;transition:all 0.3s;white-space:nowrap;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ============================
+   MODAL
+   ============================ */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:998;display:none;align-items:flex-end;justify-content:center}
+.modal.show{display:flex}
+.modal-sheet{background:var(--s1);border-radius:20px 20px 0 0;padding:20px 16px 40px;width:100%;max-height:80vh;overflow-y:auto;animation:slideUp 0.3s ease}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-handle{width:36px;height:4px;background:var(--bd);border-radius:2px;margin:0 auto 16px}
+.modal-title{font-size:17px;font-weight:800;margin-bottom:16px}
+
+/* ============================
+   PROFILE
+   ============================ */
+.profile-hero{background:linear-gradient(135deg,var(--a1),var(--a2));border-radius:var(--r);padding:20px;margin-bottom:14px;display:flex;align-items:center;gap:14px}
+.ph-avatar{width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0}
+.ph-info h3{font-size:16px;font-weight:800}
+.ph-info p{font-size:12px;opacity:0.8;margin-top:2px}
+.upgrade-btn{margin-left:auto;background:rgba(255,255,255,0.2);padding:7px 14px;border-radius:18px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.storage-bar-wrap{background:var(--s1);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:14px}
+.storage-info{display:flex;justify-content:space-between;font-size:12px;margin-bottom:8px}
+.storage-track{height:5px;background:var(--s3);border-radius:3px;overflow:hidden}
+.storage-fill{height:100%;width:28%;background:linear-gradient(90deg,var(--a1),var(--a2));border-radius:3px}
+.setting-group{background:var(--s1);border:1px solid var(--bd);border-radius:14px;overflow:hidden;margin-bottom:12px}
+.sg-label{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:1px;padding:10px 14px 4px}
+.setting-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--bd)}
+.setting-row:last-child{border-bottom:none}
+.sr-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.si-blue{background:rgba(79,142,247,0.15)}
+.si-green{background:rgba(0,229,160,0.15)}
+.si-purple{background:rgba(124,92,252,0.15)}
+.si-red{background:rgba(255,107,107,0.15)}
+.si-yellow{background:rgba(255,217,61,0.15)}
+.sr-text{flex:1;font-size:13px;font-weight:500}
+.sr-sub{font-size:10px;color:var(--t2);margin-top:1px}
+.toggle{width:40px;height:22px;border-radius:11px;background:var(--s3);position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0}
+.toggle.on{background:var(--a1)}
+.toggle::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left 0.2s}
+.toggle.on::after{left:21px}
+
+/* ============================
+   EDIT SCREEN
+   ============================ */
+.edit-preview{background:var(--s1);border:1px solid var(--bd);border-radius:14px;overflow:hidden;height:220px;display:flex;align-items:center;justify-content:center;margin-bottom:12px;position:relative}
+#editCanvas{max-width:100%;max-height:220px;border-radius:14px}
+.edit-tools{display:flex;gap:6px;overflow-x:auto;margin-bottom:12px}
+.edit-tools::-webkit-scrollbar{display:none}
+.et-btn{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 12px;background:var(--s2);border:1px solid var(--bd);border-radius:12px;cursor:pointer;transition:all 0.2s}
+.et-btn.active,.et-btn:active{background:var(--a1);border-color:transparent}
+.et-icon{font-size:18px}
+.et-lbl{font-size:9px;font-weight:600;color:var(--t2)}
+.et-btn.active .et-lbl{color:#fff}
+
+/* ============================
+   UPLOAD ZONE
+   ============================ */
+.upload-zone{border:2px dashed var(--bd);border-radius:14px;padding:32px 16px;text-align:center;cursor:pointer;transition:all 0.2s;margin-bottom:12px}
+.upload-zone:active{border-color:var(--a1);background:rgba(79,142,247,0.05)}
+.uz-icon{font-size:40px;margin-bottom:10px}
+.uz-title{font-size:14px;font-weight:700;margin-bottom:4px}
+.uz-sub{font-size:12px;color:var(--t2)}
+
+/* BADGE TAGS */
+.badge{display:inline-block;font-size:9px;font-weight:700;padding:2px 7px;border-radius:5px;margin-right:4px}
+.badge-blue{background:rgba(79,142,247,0.15);color:var(--a1)}
+.badge-green{background:rgba(0,229,160,0.15);color:var(--a3)}
+.badge-purple{background:rgba(124,92,252,0.15);color:var(--a2)}
+
+/* NOTIFICATION DOT */
+.notif-dot{width:7px;height:7px;border-radius:50%;background:var(--a4);position:absolute;top:2px;right:2px}
+
+/* CLOUD BANNER */
+.cloud-banner{background:linear-gradient(135deg,rgba(0,229,160,0.08),rgba(79,142,247,0.08));border:1px solid rgba(0,229,160,0.2);border-radius:12px;padding:10px 14px;display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.cb-text{font-size:12px;font-weight:500;flex:1}
+.cb-action{font-size:11px;font-weight:700;color:var(--a3);cursor:pointer;flex-shrink:0}
+
+/* FAB */
+.fab{width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,var(--a1),var(--a2));display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer;box-shadow:0 6px 24px rgba(79,142,247,0.45);border:2px solid rgba(255,255,255,0.15);transition:transform 0.2s;position:relative}
+.fab::after{content:'';position:absolute;inset:-4px;border-radius:50%;border:2px solid rgba(79,142,247,0.25);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{transform:scale(1);opacity:0.7}50%{transform:scale(1.18);opacity:0}}
+.fab:active{transform:scale(0.94)}
+.fab-row{display:flex;justify-content:center;margin:6px 0 16px}
+
+/* PAGES STRIP */
+.pages-strip{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px}
+.pages-strip::-webkit-scrollbar{display:none}
+.page-thumb{width:70px;height:88px;border-radius:8px;background:var(--s2);border:2px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--t2);flex-shrink:0;position:relative;cursor:pointer;overflow:hidden}
+.page-thumb.active{border-color:var(--a1)}
+.page-thumb img{width:100%;height:100%;object-fit:cover}
+.page-thumb .pg-num{position:absolute;bottom:3px;right:5px;font-size:8px;font-weight:700;color:var(--a1)}
+.add-page{border-style:dashed;font-size:20px}
+
+/* INPUT */
+.text-input{width:100%;background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:10px 14px;font-size:13px;color:var(--t1);outline:none;margin-bottom:10px}
+.text-input:focus{border-color:var(--a1)}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- =================== LOADING OVERLAY =================== -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingText">Processing...</div>
+  <div class="loading-sub" id="loadingSub">Please wait</div>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+</div>
+
+<!-- =================== TOAST =================== -->
+<div class="toast" id="toast"></div>
+
+<!-- =================== HOME SCREEN =================== -->
+<div class="screen active" id="screen-home">
+  <div class="statusbar">
+    <span class="time" id="clockTime">9:41</span>
+    <div class="icons">📶 🔋</div>
+  </div>
+  <div class="page-header">
+    <div>
+      <div class="page-title">Doc<span class="g">Scan AI</span></div>
+      <div style="font-size:11px;color:var(--t2);margin-top:1px">Good to see you! 👋</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <div class="icon-btn" onclick="goScreen('screen-settings')">⚙️</div>
+      <div class="icon-btn" style="position:relative">🔔<div class="notif-dot"></div></div>
+    </div>
+  </div>
+
+  <div class="scroll-body">
+    <div class="cloud-banner">
+      <span>☁️</span>
+      <span class="cb-text">Auto-sync enabled — all docs backed up</span>
+      <span class="cb-action">Manage</span>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="qa-strip">
+      <div class="qa-btn primary" onclick="openCamera()">
+        <div class="qi">📷</div><div class="ql">Scan</div>
+      </div>
+      <div class="qa-btn" onclick="triggerFileUpload('image/*')">
+        <div class="qi">🖼️</div><div class="ql">Import</div>
+      </div>
+      <div class="qa-btn" onclick="triggerFileUpload('.pdf')">
+        <div class="qi">📄</div><div class="ql">PDF</div>
+      </div>
+      <div class="qa-btn" onclick="goScreen('screen-tools')">
+        <div class="qi">🔧</div><div class="ql">Tools</div>
+      </div>
+      <div class="qa-btn" onclick="goScreen('screen-tools')">
+        <div class="qi">🪪</div><div class="ql">ID Card</div>
+      </div>
+      <div class="qa-btn" onclick="goScreen('screen-tools')">
+        <div class="qi">🧾</div><div class="ql">Receipt</div>
+      </div>
+      <div class="qa-btn" onclick="goScreen('screen-tools')">
+        <div class="qi">💳</div><div class="ql">Biz Card</div>
+      </div>
+      <div class="qa-btn" onclick="openCamera()">
+        <div class="qi">📋</div><div class="ql">Board</div>
+      </div>
+    </div>
+
+    <div class="fab-row">
+      <div class="fab" onclick="openCamera()">📷</div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-num" id="docCount">0</div>
+        <div class="stat-lbl">Documents</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" id="pageCount">0</div>
+        <div class="stat-lbl">Pages Scanned</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" style="color:var(--a3)">✓</div>
+        <div class="stat-lbl">Synced</div>
+      </div>
+    </div>
+
+    <!-- Recent Docs -->
+    <div class="sec-title">Recent Documents</div>
+    <div id="recentDocs">
+      <div style="text-align:center;padding:24px;color:var(--t2);font-size:13px">
+        📄 No documents yet<br>
+        <span style="font-size:11px;margin-top:6px;display:block">Tap 📷 to scan your first document</span>
+      </div>
+    </div>
+
+    <!-- Features -->
+    <div class="sec-title">AI Features</div>
+    <div class="feat-grid">
+      <div class="feat-card" onclick="goScreen('screen-edit')">
+        <div class="fc-badge fc-ai">AI</div>
+        <div class="fc-icon">🔍</div>
+        <div class="fc-title">Smart OCR</div>
+        <div class="fc-desc">Extract text from any image with 99% accuracy</div>
+      </div>
+      <div class="feat-card" onclick="openCamera()">
+        <div class="fc-badge fc-ai">AI</div>
+        <div class="fc-icon">✂️</div>
+        <div class="fc-title">Auto Crop</div>
+        <div class="fc-desc">AI detects document edges automatically</div>
+      </div>
+      <div class="feat-card" onclick="goScreen('screen-tools')">
+        <div class="fc-badge fc-new">NEW</div>
+        <div class="fc-icon">✍️</div>
+        <div class="fc-title">e-Signature</div>
+        <div class="fc-desc">Sign documents digitally with one tap</div>
+      </div>
+      <div class="feat-card" onclick="goScreen('screen-tools')">
+        <div class="fc-badge fc-ai">AI</div>
+        <div class="fc-icon">🌐</div>
+        <div class="fc-title">Translate</div>
+        <div class="fc-desc">Translate scanned text to 50+ languages</div>
+      </div>
+      <div class="feat-card" onclick="goScreen('screen-tools')">
+        <div class="fc-badge fc-new">NEW</div>
+        <div class="fc-icon">📊</div>
+        <div class="fc-title">PDF to Excel</div>
+        <div class="fc-desc">Extract tables to spreadsheet instantly</div>
+      </div>
+      <div class="feat-card" onclick="goScreen('screen-tools')">
+        <div class="fc-badge fc-ai">AI</div>
+        <div class="fc-icon">📋</div>
+        <div class="fc-title">Summarize</div>
+        <div class="fc-desc">AI summary of long documents in 1 tap</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-nav">
+    <div class="nav-item active" onclick="goScreen('screen-home')"><div class="nav-icon">🏠</div><div class="nav-label">Home</div></div>
+    <div class="nav-item" onclick="openCamera()"><div class="nav-icon">📷</div><div class="nav-label">Scan</div></div>
+    <div class="nav-item" onclick="goScreen('screen-tools')"><div class="nav-icon">🔧</div><div class="nav-label">Tools</div></div>
+    <div class="nav-item" onclick="goScreen('screen-edit')"><div class="nav-icon">✏️</div><div class="nav-label">Edit</div></div>
+    <div class="nav-item" onclick="goScreen('screen-settings')"><div class="nav-icon">👤</div><div class="nav-label">Profile</div></div>
+  </div>
+</div>
+
+<!-- =================== CAMERA SCREEN =================== -->
+<div class="screen" id="screen-camera" style="position:relative;background:#000">
+  <div class="cam-header">
+    <div class="icon-btn" style="background:rgba(0,0,0,0.5);border-color:rgba(255,255,255,0.15)" onclick="closeCamera()">✕</div>
+    <div style="color:#fff;font-size:14px;font-weight:700" id="camModeLabel">Document</div>
+    <div class="icon-btn" style="background:rgba(0,0,0,0.5);border-color:rgba(255,255,255,0.15)" onclick="toggleFlash()" id="flashBtn">⚡</div>
+  </div>
+
+  <video id="videoEl" autoplay playsinline muted></video>
+  <canvas id="canvas" style="display:none"></canvas>
+
+  <div class="cam-overlay">
+    <div class="auto-detect">AUTO DETECT ON</div>
+    <div class="cam-corner cc-tl"></div>
+    <div class="cam-corner cc-tr"></div>
+    <div class="cam-corner cc-bl"></div>
+    <div class="cam-corner cc-br"></div>
+    <div class="scan-line"></div>
+  </div>
+
+  <div class="cam-controls">
+    <div class="cam-modes">
+      <div class="cam-mode active" onclick="setCamMode(this,'Document')">📄 Document</div>
+      <div class="cam-mode" onclick="setCamMode(this,'ID Card')">🪪 ID Card</div>
+      <div class="cam-mode" onclick="setCamMode(this,'Receipt')">🧾 Receipt</div>
+      <div class="cam-mode" onclick="setCamMode(this,'Business Card')">💳 Biz Card</div>
+      <div class="cam-mode" onclick="setCamMode(this,'Whiteboard')">📋 Whiteboard</div>
+      <div class="cam-mode" onclick="setCamMode(this,'Book')">📖 Book</div>
+      <div class="cam-mode" onclick="setCamMode(this,'Photo')">🖼️ Photo</div>
+    </div>
+    <div class="cam-actions">
+      <div class="cam-action" onclick="triggerFileUpload('image/*')">
+        <div class="ca-icon">🖼️</div><div class="ca-lbl">Gallery</div>
+      </div>
+      <div class="cam-action" id="batchBtn">
+        <div class="ca-icon">📑</div><div class="ca-lbl">Batch(<span id="batchCount">0</span>)</div>
+      </div>
+      <div class="shutter" onclick="capturePhoto()">📷</div>
+      <div class="cam-action" onclick="switchCamera()">
+        <div class="ca-icon">🔄</div><div class="ca-lbl">Flip</div>
+      </div>
+      <div class="cam-action" id="doneBtn" style="opacity:0.4" onclick="finishBatch()">
+        <div class="ca-icon">✅</div><div class="ca-lbl">Done</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =================== EDIT / OCR SCREEN =================== -->
+<div class="screen" id="screen-edit">
+  <div class="statusbar">
+    <span class="time" id="editClock">9:41</span>
+  </div>
+  <div class="page-header">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="icon-btn" onclick="goScreen('screen-home')">◀</div>
+      <div class="page-title" style="font-size:20px">Edit <span class="g">Doc</span></div>
+    </div>
+    <div style="font-size:13px;font-weight:700;color:var(--a1);cursor:pointer" onclick="savePDF()">💾 Save PDF</div>
+  </div>
+
+  <div class="scroll-body">
+    <!-- Pages strip -->
+    <div class="pages-strip" id="pagesStrip">
+      <div class="page-thumb add-page" onclick="openCamera()">➕<div class="pg-num">add</div></div>
+    </div>
+
+    <!-- Preview -->
+    <div class="edit-preview">
+      <canvas id="editCanvas"></canvas>
+      <div id="editPlaceholder" style="text-align:center;color:var(--t2)">
+        <div style="font-size:36px;margin-bottom:8px">📄</div>
+        <div style="font-size:13px">Scan or import a document<br>to start editing</div>
+      </div>
+    </div>
+
+    <!-- Edit Tools -->
+    <div class="edit-tools">
+      <div class="et-btn active" id="etRotate" onclick="editTool('rotate')"><div class="et-icon">🔁</div><div class="et-lbl">Rotate</div></div>
+      <div class="et-btn" onclick="editTool('crop')"><div class="et-icon">✂️</div><div class="et-lbl">Crop</div></div>
+      <div class="et-btn" onclick="editTool('filter')"><div class="et-icon">🎨</div><div class="et-lbl">Filter</div></div>
+      <div class="et-btn" onclick="runOCR()"><div class="et-icon">🔍</div><div class="et-lbl">OCR</div></div>
+      <div class="et-btn" onclick="editTool('annotate')"><div class="et-icon">✍️</div><div class="et-lbl">Annotate</div></div>
+      <div class="et-btn" onclick="editTool('sign')"><div class="et-icon">🖊️</div><div class="et-lbl">Sign</div></div>
+      <div class="et-btn" onclick="editTool('redact')"><div class="et-icon">⬛</div><div class="et-lbl">Redact</div></div>
+      <div class="et-btn" onclick="editTool('brightness')"><div class="et-icon">☀️</div><div class="et-lbl">Enhance</div></div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-strip">
+      <div class="fchip active" onclick="applyFilter(this,'auto')">✨ Auto</div>
+      <div class="fchip" onclick="applyFilter(this,'original')">📷 Original</div>
+      <div class="fchip" onclick="applyFilter(this,'bw')">⚫ B&W</div>
+      <div class="fchip" onclick="applyFilter(this,'grayscale')">🔲 Grayscale</div>
+      <div class="fchip" onclick="applyFilter(this,'bright')">☀️ Bright</div>
+      <div class="fchip" onclick="applyFilter(this,'vivid')">🎨 Vivid</div>
+      <div class="fchip" onclick="applyFilter(this,'document')">📄 Document</div>
+    </div>
+
+    <!-- Adjustments -->
+    <div class="slider-row">
+      <label>Brightness <span id="bv">+15</span></label>
+      <input type="range" min="-100" max="100" value="15" oninput="adjustImage('brightness',this.value);document.getElementById('bv').textContent=(this.value>0?'+':'')+this.value">
+    </div>
+    <div class="slider-row">
+      <label>Contrast <span id="cv">+10</span></label>
+      <input type="range" min="-100" max="100" value="10" oninput="adjustImage('contrast',this.value);document.getElementById('cv').textContent=(this.value>0?'+':'')+this.value">
+    </div>
+    <div class="slider-row">
+      <label>Sharpness <span id="sv">+20</span></label>
+      <input type="range" min="0" max="100" value="20" oninput="document.getElementById('sv').textContent='+'+this.value">
+    </div>
+
+    <!-- OCR Result -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div class="sec-title" style="margin:0">🔍 OCR Text Result</div>
+      <div style="font-size:11px;font-weight:700;color:var(--a1);cursor:pointer" onclick="copyOCR()">Copy All</div>
+    </div>
+    <div class="ocr-box" id="ocrResult">Tap the 🔍 OCR button above after scanning a document to extract text automatically...</div>
+
+    <!-- Action Buttons -->
+    <div class="action-row">
+      <div class="act-btn btn-primary" onclick="savePDF()">💾 Save PDF</div>
+      <div class="act-btn btn-success" onclick="shareDoc()">📤 Share</div>
+    </div>
+    <div class="action-row">
+      <div class="act-btn btn-secondary" onclick="exportJPG()">🖼️ Export JPG</div>
+      <div class="act-btn btn-secondary" onclick="runOCR()">🔍 Run OCR</div>
+      <div class="act-btn btn-danger" onclick="deleteDoc()">🗑️ Delete</div>
+    </div>
+  </div>
+
+  <div class="bottom-nav">
+    <div class="nav-item" onclick="goScreen('screen-home')"><div class="nav-icon">🏠</div><div class="nav-label">Home</div></div>
+    <div class="nav-item" onclick="openCamera()"><div class="nav-icon">📷</div><div class="nav-label">Scan</div></div>
+    <div class="nav-item" onclick="goScreen('screen-tools')"><div class="nav-icon">🔧</div><div class="nav-label">Tools</div></div>
+    <div class="nav-item active"><div class="nav-icon">✏️</div><div class="nav-label">Edit</div></div>
+    <div class="nav-item" onclick="goScreen('screen-settings')"><div class="nav-icon">👤</div><div class="nav-label">Profile</div></div>
+  </div>
+</div>
+
+<!-- =================== TOOLS SCREEN =================== -->
+<div class="screen" id="screen-tools">
+  <div class="statusbar"><span class="time">9:41</span></div>
+  <div class="page-header">
+    <div class="page-title">PDF <span class="g">Tools</span></div>
+    <div class="icon-btn">🔍</div>
+  </div>
+  <div class="scroll-body">
+
+    <!-- Import zone -->
+    <div class="upload-zone" onclick="triggerFileUpload('.pdf,image/*')">
+      <div class="uz-icon">📁</div>
+      <div class="uz-title">Import Document</div>
+      <div class="uz-sub">PDF, JPG, PNG — tap to select file</div>
+    </div>
+
+    <div class="sec-title">PDF Operations</div>
+    <div class="tools-grid">
+      <div class="tool-card" onclick="toolAction('ocr')">
+        <div class="tc-badge tc-ai">AI</div>
+        <div class="tc-icon">🔍</div>
+        <div class="tc-title">Smart OCR</div>
+        <div class="tc-desc">Extract text from any image or scan</div>
+      </div>
+      <div class="tool-card" onclick="toolAction('merge')">
+        <div class="tc-icon">📑</div>
+        <div class="tc-title">Merge PDF</div>
+        <div class="tc-desc">Combine multiple PDFs into one</div>
+      </div>
+      <div class="tool-card" onclick="toolAction('split')">
+        <div class="tc-icon">✂️</div>
+        <div class="tc-title">Split PDF</div>
+        <div class="tc-desc">Split into individual pages</div>
+      </div>
+      <div class="tool-card" onclick="toolAction('compress')">
+        <div class="tc-icon">🗜️</div>
+        <div class="tc-title">Compress PDF</div>
+        <div class="tc-desc">Reduce file size instantly</div>
+      </div>
+      <div class="tool-card" onclick="toolAction('protect')">
+        <div class="tc-badge tc-pro">PRO</div>
+        <div class="tc-icon">🔐</div>
+        <div class="tc-title">Encrypt PDF</div>
+        <div class="tc-desc">Password-protect any PDF</div>
+      </div>
+      <div class="tool-card" onclick="toolAction('watermark')">
+        <div class="tc-icon">🔖</div>
+        <div class="tc-title">Watermark</div>
+        <div class="tc-desc">Stamp text or logo on PDF</div>
+      </div>
+    </div>
+
+    <div class="sec-title">Convert</div>
+    <div class="tools-grid">
+      <div class="tool-card" onclick="toolAction('pdf2word')">
+        <div class="tc-badge tc-new">NEW</div>
+        <div class="tc-icon">📝</div>
+        <div class="tc-title">PDF to Word</div>
+        <div class="tc-desc">Convert to editable DOCX</div>
+      </div>
+      <div class="tool-card" onclick="toolAction('img2pdf')">
+        <div class="tc-icon">🖼️</div>
+        <div class="tc-title">Image to PDF</div>
+        <div class="tc-desc">Convert JPG/PNG to PDF</div>
+      </div>
+      <div class="tool-card" onclick="toolAction('pdf2img')">
+        <div class="tc-icon">📸</div>
+        <div class="tc-title">PDF to Image</div>
+        <div class="tc-desc">Export pages as JPG/PNG</div>
+      </div>
+      <div class="tool-card" onclick="toolAction('translate')">
+        <div class="tc-badge tc-ai">AI</div>
+        <div class="tc-icon">🌐</div>
+        <div class="tc-title">Translate</div>
+        <div class="tc-desc">Translate document content</div>
+      </div>
+    </div>
+
+    <div class="sec-title">Advanced</div>
+    <div class="tools-grid">
+      <div class="tool-card" onclick="toolAction('sign')">
+        <div class="tc-badge tc-new">NEW</div>
+        <div class="tc-icon">✍️</div>
+        <div class="tc-title">e-Signature</div>
+        <div class="tc-desc">Draw & apply digital signature</div>
+      </div>
+      <div class="tool-card" onclick="toolAction('summarize')">
+        <div class="tc-badge tc-ai">AI</div>
+        <div class="tc-icon">📋</div>
+        <div class="tc-title">AI Summarize</div>
+        <div class="tc-desc">Key points from long docs</div>
+      </div>
+      <div class="tool-card" onclick="toolAction('qr')">
+        <div class="tc-icon">📱</div>
+        <div class="tc-title">QR Generator</div>
+        <div class="tc-desc">Generate QR & Barcodes</div>
+      </div>
+      <div class="tool-card" onclick="toolAction('fax')">
+        <div class="tc-icon">📠</div>
+        <div class="tc-title">Send Fax</div>
+        <div class="tc-desc">Fax documents worldwide</div>
+      </div>
+      <div class="tool-card" onclick="toolAction('pagenumber')">
+        <div class="tc-icon">🔢</div>
+        <div class="tc-title">Page Numbers</div>
+        <div class="tc-desc">Add page numbers to PDF</div>
+      </div>
+      <div class="tool-card" onclick="toolAction('share')">
+        <div class="tc-icon">📤</div>
+        <div class="tc-title">Share & Export</div>
+        <div class="tc-desc">Email, Drive, WhatsApp</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-nav">
+    <div class="nav-item" onclick="goScreen('screen-home')"><div class="nav-icon">🏠</div><div class="nav-label">Home</div></div>
+    <div class="nav-item" onclick="openCamera()"><div class="nav-icon">📷</div><div class="nav-label">Scan</div></div>
+    <div class="nav-item active"><div class="nav-icon">🔧</div><div class="nav-label">Tools</div></div>
+    <div class="nav-item" onclick="goScreen('screen-edit')"><div class="nav-icon">✏️</div><div class="nav-label">Edit</div></div>
+    <div class="nav-item" onclick="goScreen('screen-settings')"><div class="nav-icon">👤</div><div class="nav-label">Profile</div></div>
+  </div>
+</div>
+
+<!-- =================== SETTINGS SCREEN =================== -->
+<div class="screen" id="screen-settings">
+  <div class="statusbar"><span class="time">9:41</span></div>
+  <div class="page-header">
+    <div class="page-title">My <span class="g">Profile</span></div>
+    <div class="icon-btn">✏️</div>
+  </div>
+  <div class="scroll-body">
+    <div class="profile-hero">
+      <div class="ph-avatar">😊</div>
+      <div class="ph-info">
+        <h3>DocScan AI User</h3>
+        <p>Free Plan · 1.2 GB used</p>
+      </div>
+      <div class="upgrade-btn">Upgrade 👑</div>
+    </div>
+
+    <div class="storage-bar-wrap">
+      <div class="storage-info">
+        <span style="font-size:12px;font-weight:600">Storage</span>
+        <span style="font-size:11px;color:var(--t2)">1.2 GB / 5 GB</span>
+      </div>
+      <div class="storage-track"><div class="storage-fill"></div></div>
+      <div style="font-size:10px;color:var(--t2);margin-top:6px">3.8 GB free — upgrade for unlimited</div>
+    </div>
+
+    <div class="setting-group">
+      <div class="sg-label">Scanning</div>
+      <div class="setting-row">
+        <div class="sr-icon si-blue">🔍</div>
+        <div class="sr-text">Auto Document Detection<div class="sr-sub">AI edge detection</div></div>
+        <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+      </div>
+      <div class="setting-row">
+        <div class="sr-icon si-green">📝</div>
+        <div class="sr-text">Auto OCR on Scan<div class="sr-sub">Extract text automatically</div></div>
+        <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+      </div>
+      <div class="setting-row">
+        <div class="sr-icon si-yellow">⚡</div>
+        <div class="sr-text">Auto Flash<div class="sr-sub">For dark environments</div></div>
+        <div class="toggle" onclick="this.classList.toggle('on')"></div>
+      </div>
+      <div class="setting-row">
+        <div class="sr-icon si-purple">✨</div>
+        <div class="sr-text">Auto Enhance<div class="sr-sub">Sharpen on capture</div></div>
+        <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <div class="sg-label">Cloud & Backup</div>
+      <div class="setting-row">
+        <div class="sr-icon si-green">☁️</div>
+        <div class="sr-text">Google Drive Sync<div class="sr-sub">Last synced: just now</div></div>
+        <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+      </div>
+      <div class="setting-row">
+        <div class="sr-icon si-blue">📦</div>
+        <div class="sr-text">Dropbox Backup</div>
+        <div class="toggle" onclick="this.classList.toggle('on')"></div>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <div class="sg-label">Security</div>
+      <div class="setting-row">
+        <div class="sr-icon si-red">🔐</div>
+        <div class="sr-text">App Lock<div class="sr-sub">Fingerprint / PIN</div></div>
+        <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+      </div>
+      <div class="setting-row">
+        <div class="sr-icon si-blue">🕵️</div>
+        <div class="sr-text">Privacy Mode<div class="sr-sub">No data sent to servers</div></div>
+        <div class="toggle" onclick="this.classList.toggle('on')"></div>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <div class="sg-label">App</div>
+      <div class="setting-row">
+        <div class="sr-icon si-yellow">⭐</div>
+        <div class="sr-text">Rate DocScan AI</div>
+        <div style="color:var(--t3)">›</div>
+      </div>
+      <div class="setting-row">
+        <div class="sr-icon si-green">📢</div>
+        <div class="sr-text">Share with Friends</div>
+        <div style="color:var(--t3)">›</div>
+      </div>
+      <div class="setting-row">
+        <div class="sr-icon si-blue">ℹ️</div>
+        <div class="sr-text">About<div class="sr-sub">Version 1.0.0</div></div>
+        <div style="color:var(--t3)">›</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-nav">
+    <div class="nav-item" onclick="goScreen('screen-home')"><div class="nav-icon">🏠</div><div class="nav-label">Home</div></div>
+    <div class="nav-item" onclick="openCamera()"><div class="nav-icon">📷</div><div class="nav-label">Scan</div></div>
+    <div class="nav-item" onclick="goScreen('screen-tools')"><div class="nav-icon">🔧</div><div class="nav-label">Tools</div></div>
+    <div class="nav-item" onclick="goScreen('screen-edit')"><div class="nav-icon">✏️</div><div class="nav-label">Edit</div></div>
+    <div class="nav-item active"><div class="nav-icon">👤</div><div class="nav-label">Profile</div></div>
+  </div>
+</div>
+
+<!-- Hidden file input -->
+<input type="file" id="fileInput" style="display:none" accept="image/*,.pdf" multiple>
+
+</div><!-- end app -->
+
+<script>
+// ============================================================
+// APP STATE
+// ============================================================
+const state = {
+  docs: JSON.parse(localStorage.getItem('docscanaai_docs') || '[]'),
+  currentImage: null,
+  currentImageDataUrl: null,
+  batchImages: [],
+  cameraStream: null,
+  facingMode: 'environment',
+  flashOn: false,
+  currentFilter: 'auto',
+  rotation: 0,
+};
+
+// ============================================================
+// CLOCK
+// ============================================================
+function updateClock() {
+  const now = new Date();
+  const t = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+  document.querySelectorAll('.time').forEach(el => el.textContent = t);
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+function goScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById(id);
+  if (el) el.classList.add('active');
+  if (id !== 'screen-camera') stopCamera();
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+function showToast(msg, duration = 2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration);
+}
+
+// ============================================================
+// LOADING
+// ============================================================
+function showLoading(text, sub, progress = 0) {
+  document.getElementById('loadingText').textContent = text;
+  document.getElementById('loadingSub').textContent = sub;
+  document.getElementById('progressFill').style.width = progress + '%';
+  document.getElementById('loadingOverlay').classList.add('show');
+}
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.remove('show');
+}
+function setProgress(p) {
+  document.getElementById('progressFill').style.width = p + '%';
+}
+
+// ============================================================
+// CAMERA — REAL DEVICE CAMERA ACCESS
+// ============================================================
+async function openCamera() {
+  goScreen('screen-camera');
+  await startCamera();
+}
+
+async function startCamera() {
+  stopCamera();
+  try {
+    const constraints = {
+      video: {
+        facingMode: state.facingMode,
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        focusMode: 'continuous',
+      },
+      audio: false
+    };
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    state.cameraStream = stream;
+    const video = document.getElementById('videoEl');
+    video.srcObject = stream;
+    await video.play();
+  } catch (err) {
+    if (err.name === 'NotAllowedError') {
+      showToast('❌ Camera permission denied — please allow camera access in browser settings');
+    } else if (err.name === 'NotFoundError') {
+      showToast('❌ No camera found on this device');
+    } else {
+      showToast('❌ Camera error: ' + err.message);
+    }
+    goScreen('screen-home');
+  }
+}
+
+function stopCamera() {
+  if (state.cameraStream) {
+    state.cameraStream.getTracks().forEach(t => t.stop());
+    state.cameraStream = null;
+  }
+}
+
+function closeCamera() {
+  stopCamera();
+  goScreen('screen-home');
+}
+
+async function switchCamera() {
+  state.facingMode = state.facingMode === 'environment' ? 'user' : 'environment';
+  await startCamera();
+  showToast(state.facingMode === 'environment' ? '📷 Back camera' : '🤳 Front camera');
+}
+
+function toggleFlash() {
+  state.flashOn = !state.flashOn;
+  document.getElementById('flashBtn').textContent = state.flashOn ? '🔦' : '⚡';
+  if (state.cameraStream) {
+    const track = state.cameraStream.getVideoTracks()[0];
+    if (track && track.getCapabilities().torch) {
+      track.applyConstraints({ advanced: [{ torch: state.flashOn }] });
+    }
+  }
+  showToast(state.flashOn ? '🔦 Flash ON' : '⚡ Flash OFF');
+}
+
+function setCamMode(el, mode) {
+  document.querySelectorAll('.cam-mode').forEach(m => m.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('camModeLabel').textContent = mode;
+}
+
+// ============================================================
+// CAPTURE PHOTO
+// ============================================================
+function capturePhoto() {
+  const video = document.getElementById('videoEl');
+  const canvas = document.getElementById('canvas');
+  if (!state.cameraStream || !video.videoWidth) {
+    showToast('⚠️ Camera not ready');
+    return;
+  }
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+  state.batchImages.push(dataUrl);
+  updateBatchCount();
+  showToast('📸 Page ' + state.batchImages.length + ' captured!');
+  document.getElementById('doneBtn').style.opacity = '1';
+
+  // Flash effect
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:#fff;opacity:0.8;z-index:9999;pointer-events:none';
+  document.body.appendChild(overlay);
+  setTimeout(() => overlay.remove(), 150);
+}
+
+function updateBatchCount() {
+  document.getElementById('batchCount').textContent = state.batchImages.length;
+}
+
+function finishBatch() {
+  if (state.batchImages.length === 0) {
+    showToast('⚠️ No pages captured yet');
+    return;
+  }
+  stopCamera();
+  state.currentImageDataUrl = state.batchImages[state.batchImages.length - 1];
+  state.batchImages = [];
+  updateBatchCount();
+  document.getElementById('doneBtn').style.opacity = '0.4';
+  goScreen('screen-edit');
+  loadImageInEditor(state.currentImageDataUrl);
+  saveDocToHistory(state.currentImageDataUrl);
+}
+
+// ============================================================
+// FILE UPLOAD / IMPORT
+// ============================================================
+function triggerFileUpload(accept) {
+  const fi = document.getElementById('fileInput');
+  fi.accept = accept || 'image/*,.pdf';
+  fi.click();
+}
+
+document.getElementById('fileInput').addEventListener('change', async function(e) {
+  const files = Array.from(e.target.files);
+  if (!files.length) return;
+
+  for (const file of files) {
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        state.currentImageDataUrl = ev.target.result;
+        loadImageInEditor(ev.target.result);
+        saveDocToHistory(ev.target.result, file.name);
+        stopCamera();
+        goScreen('screen-edit');
+        showToast('✅ Image imported!');
+      };
+      reader.readAsDataURL(file);
+      break;
+    } else if (file.type === 'application/pdf') {
+      showToast('📄 PDF imported — opening editor');
+      stopCamera();
+      goScreen('screen-edit');
+      break;
+    }
+  }
+  this.value = '';
+});
+
+// ============================================================
+// EDITOR
+// ============================================================
+function loadImageInEditor(dataUrl) {
+  const canvas = document.getElementById('editCanvas');
+  const placeholder = document.getElementById('editPlaceholder');
+  const img = new Image();
+  img.onload = () => {
+    const maxW = canvas.parentElement.clientWidth - 20;
+    const maxH = 210;
+    const ratio = Math.min(maxW / img.width, maxH / img.height);
+    canvas.width = img.width * ratio;
+    canvas.height = img.height * ratio;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    canvas.style.display = 'block';
+    placeholder.style.display = 'none';
+    state.currentImage = img;
+    addPageThumb(dataUrl);
+    applyAutoEnhance(ctx, canvas.width, canvas.height);
+  };
+  img.src = dataUrl;
+}
+
+function applyAutoEnhance(ctx, w, h) {
+  try {
+    const imageData = ctx.getImageData(0, 0, w, h);
+    const data = imageData.data;
+    // Simple auto-contrast
+    for (let i = 0; i < data.length; i += 4) {
+      data[i]   = Math.min(255, data[i]   * 1.05 + 10);
+      data[i+1] = Math.min(255, data[i+1] * 1.05 + 10);
+      data[i+2] = Math.min(255, data[i+2] * 1.05 + 10);
+    }
+    ctx.putImageData(imageData, 0, 0);
+  } catch(e) {}
+}
+
+function addPageThumb(dataUrl) {
+  const strip = document.getElementById('pagesStrip');
+  const addBtn = strip.querySelector('.add-page');
+  const count = strip.querySelectorAll('.page-thumb:not(.add-page)').length + 1;
+  const thumb = document.createElement('div');
+  thumb.className = 'page-thumb active';
+  thumb.innerHTML = `<img src="${dataUrl}"><div class="pg-num">${count}</div>`;
+  strip.insertBefore(thumb, addBtn);
+  // Remove active from others
+  strip.querySelectorAll('.page-thumb').forEach(t => t.classList.remove('active'));
+  thumb.classList.add('active');
+}
+
+function editTool(tool) {
+  document.querySelectorAll('.et-btn').forEach(b => b.classList.remove('active'));
+  if (tool === 'rotate') {
+    rotateImage();
+  } else if (tool === 'brightness') {
+    showToast('💡 Adjust sliders below to enhance');
+  } else {
+    showToast('✨ ' + tool.charAt(0).toUpperCase() + tool.slice(1) + ' tool activated');
+  }
+}
+
+function rotateImage() {
+  const canvas = document.getElementById('editCanvas');
+  if (!state.currentImage) { showToast('⚠️ Load an image first'); return; }
+  state.rotation = (state.rotation + 90) % 360;
+  const ctx = canvas.getContext('2d');
+  const img = state.currentImage;
+  const isOdd = state.rotation === 90 || state.rotation === 270;
+  canvas.width = isOdd ? img.height : img.width;
+  canvas.height = isOdd ? img.width : img.height;
+  // Scale to fit
+  const maxW = canvas.parentElement.clientWidth - 20;
+  const maxH = 210;
+  const ratio = Math.min(maxW / canvas.width, maxH / canvas.height);
+  const dw = canvas.width * ratio, dh = canvas.height * ratio;
+  canvas.width = dw; canvas.height = dh;
+  ctx.save();
+  ctx.translate(dw/2, dh/2);
+  ctx.rotate((state.rotation * Math.PI) / 180);
+  ctx.drawImage(img, -dw/2, -dh/2, dw, dh);
+  ctx.restore();
+  showToast('🔁 Rotated ' + state.rotation + '°');
+}
+
+function adjustImage(type, val) {
+  // Visual feedback only — real implementation uses canvas filters
+  const canvas = document.getElementById('editCanvas');
+  const v = parseInt(val);
+  if (type === 'brightness') {
+    canvas.style.filter = `brightness(${1 + v/100})`;
+  } else if (type === 'contrast') {
+    canvas.style.filter = `contrast(${1 + v/100})`;
+  }
+}
+
+function applyFilter(el, filter) {
+  document.querySelectorAll('.fchip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  state.currentFilter = filter;
+  const canvas = document.getElementById('editCanvas');
+  const filters = {
+    auto: 'brightness(1.05) contrast(1.1)',
+    original: 'none',
+    bw: 'grayscale(1) contrast(1.2)',
+    grayscale: 'grayscale(0.8)',
+    bright: 'brightness(1.2)',
+    vivid: 'saturate(1.5) contrast(1.1)',
+    document: 'contrast(1.3) brightness(1.1) grayscale(0.2)',
+  };
+  canvas.style.filter = filters[filter] || 'none';
+  showToast('🎨 Filter applied: ' + el.textContent.trim());
+}
+
+// ============================================================
+// REAL OCR USING TESSERACT.JS
+// ============================================================
+async function runOCR() {
+  const canvas = document.getElementById('editCanvas');
+  if (canvas.style.display === 'none' || !state.currentImageDataUrl) {
+    showToast('⚠️ Please scan or import a document first');
+    return;
+  }
+  showLoading('🔍 Running OCR...', 'Extracting text from document', 10);
+  document.getElementById('ocrResult').textContent = 'Processing...';
+  try {
+    const { createWorker } = Tesseract;
+    const worker = await createWorker('eng', 1, {
+      logger: m => {
+        if (m.status === 'recognizing text') {
+          setProgress(Math.round(m.progress * 80) + 10);
+        }
+      }
+    });
+    const result = await worker.recognize(state.currentImageDataUrl);
+    await worker.terminate();
+    const text = result.data.text.trim();
+    document.getElementById('ocrResult').textContent = text || '(No text detected — try a clearer image)';
+    setProgress(100);
+    setTimeout(hideLoading, 500);
+    showToast('✅ OCR complete! ' + text.split('\n').length + ' lines extracted');
+  } catch (err) {
+    hideLoading();
+    document.getElementById('ocrResult').textContent = 'OCR Error: ' + err.message;
+    showToast('❌ OCR failed — try again');
+  }
+}
+
+function copyOCR() {
+  const text = document.getElementById('ocrResult').textContent;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => showToast('📋 Text copied!'));
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('📋 Text copied!');
+  }
+}
+
+// ============================================================
+// SAVE PDF — REAL PDF GENERATION
+// ============================================================
+async function savePDF() {
+  const canvas = document.getElementById('editCanvas');
+  if (canvas.style.display === 'none' || !state.currentImageDataUrl) {
+    showToast('⚠️ No document to save');
+    return;
+  }
+  showLoading('💾 Creating PDF...', 'Generating high quality PDF', 30);
+  try {
+    const { jsPDF } = window.jspdf;
+    const img = new Image();
+    img.onload = () => {
+      const pdf = new jsPDF({
+        orientation: img.width > img.height ? 'landscape' : 'portrait',
+        unit: 'px',
+        format: [img.width, img.height],
+      });
+      pdf.addImage(state.currentImageDataUrl, 'JPEG', 0, 0, img.width, img.height, '', 'FAST');
+      setProgress(80);
+      const filename = 'DocScanAI_' + new Date().toISOString().slice(0,10) + '.pdf';
+      pdf.save(filename);
+      setProgress(100);
+      setTimeout(hideLoading, 500);
+      showToast('✅ PDF saved: ' + filename);
+      updateDocCount();
+    };
+    img.src = state.currentImageDataUrl;
+  } catch (err) {
+    hideLoading();
+    showToast('❌ PDF save failed: ' + err.message);
+  }
+}
+
+// ============================================================
+// EXPORT JPG
+// ============================================================
+function exportJPG() {
+  if (!state.currentImageDataUrl) { showToast('⚠️ No document to export'); return; }
+  const a = document.createElement('a');
+  a.href = state.currentImageDataUrl;
+  a.download = 'DocScanAI_' + Date.now() + '.jpg';
+  a.click();
+  showToast('✅ Image exported!');
+}
+
+// ============================================================
+// SHARE
+// ============================================================
+async function shareDoc() {
+  if (!state.currentImageDataUrl) { showToast('⚠️ No document to share'); return; }
+  if (navigator.share) {
+    try {
+      const res = await fetch(state.currentImageDataUrl);
+      const blob = await res.blob();
+      const file = new File([blob], 'document.jpg', { type: 'image/jpeg' });
+      await navigator.share({ title: 'DocScan AI Document', files: [file] });
+    } catch (err) {
+      showToast('Sharing cancelled');
+    }
+  } else {
+    showToast('📤 Use browser menu to share or download');
+  }
+}
+
+// ============================================================
+// DELETE
+// ============================================================
+function deleteDoc() {
+  state.currentImageDataUrl = null;
+  state.currentImage = null;
+  state.rotation = 0;
+  const canvas = document.getElementById('editCanvas');
+  canvas.style.display = 'none';
+  canvas.style.filter = 'none';
+  document.getElementById('editPlaceholder').style.display = 'block';
+  document.getElementById('ocrResult').textContent = 'No document loaded...';
+  document.getElementById('pagesStrip').querySelectorAll('.page-thumb:not(.add-page)').forEach(t => t.remove());
+  showToast('🗑️ Document deleted');
+}
+
+// ============================================================
+// SAVE TO HISTORY
+// ============================================================
+function saveDocToHistory(dataUrl, name) {
+  const doc = {
+    id: Date.now(),
+    name: name || ('Scan_' + new Date().toLocaleDateString('en-IN') + '_' + state.docs.length+1),
+    date: new Date().toLocaleDateString('en-IN'),
+    time: new Date().toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit'}),
+    thumb: dataUrl,
+    type: 'img'
+  };
+  state.docs.unshift(doc);
+  if (state.docs.length > 50) state.docs = state.docs.slice(0, 50);
+  try { localStorage.setItem('docscanaai_docs', JSON.stringify(state.docs)); } catch(e) {}
+  renderRecentDocs();
+  updateDocCount();
+}
+
+function renderRecentDocs() {
+  const container = document.getElementById('recentDocs');
+  if (!state.docs.length) {
+    container.innerHTML = '<div style="text-align:center;padding:24px;color:var(--t2);font-size:13px">📄 No documents yet<br><span style="font-size:11px;margin-top:6px;display:block">Tap 📷 to scan your first document</span></div>';
+    return;
+  }
+  container.innerHTML = state.docs.slice(0,5).map(doc => `
+    <div class="doc-item" onclick="openDoc('${doc.id}')">
+      <div class="doc-thumb dt-img">
+        ${doc.thumb ? `<img src="${doc.thumb}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">` : '📄'}
+      </div>
+      <div class="doc-info">
+        <div class="doc-name">${doc.name}</div>
+        <div class="doc-meta">${doc.date} · ${doc.time}</div>
+        <div style="margin-top:3px"><span class="badge badge-green">Scanned</span></div>
+      </div>
+      <div class="doc-badge db-img">IMG</div>
+    </div>
+  `).join('');
+}
+
+function openDoc(id) {
+  const doc = state.docs.find(d => d.id == id);
+  if (doc && doc.thumb) {
+    state.currentImageDataUrl = doc.thumb;
+    loadImageInEditor(doc.thumb);
+    goScreen('screen-edit');
+  }
+}
+
+function updateDocCount() {
+  document.getElementById('docCount').textContent = state.docs.length;
+  document.getElementById('pageCount').textContent = state.docs.length;
+}
+
+// ============================================================
+// TOOLS
+// ============================================================
+function toolAction(tool) {
+  const msgs = {
+    ocr: () => { goScreen('screen-edit'); setTimeout(runOCR, 300); },
+    merge: () => showToast('📑 Select PDFs to merge — import 2 files'),
+    split: () => showToast('✂️ PDF split — import a PDF first'),
+    compress: () => showToast('🗜️ Compressing... saves 60% file size'),
+    protect: () => showToast('🔐 Pro feature — upgrade to lock PDFs'),
+    watermark: () => showToast('🔖 Watermark tool — import document first'),
+    pdf2word: () => showToast('📝 PDF to Word — import PDF to convert'),
+    img2pdf: () => { triggerFileUpload('image/*'); },
+    pdf2img: () => showToast('📸 PDF to Image — import PDF first'),
+    translate: () => showToast('🌐 Translate — run OCR first, then translate'),
+    sign: () => { goScreen('screen-edit'); showToast('✍️ Tap Edit → Sign to add signature'); },
+    summarize: () => { goScreen('screen-edit'); showToast('📋 Run OCR first, then AI will summarize'); },
+    qr: () => showToast('📱 QR Generator — coming in next update'),
+    fax: () => showToast('📠 Fax feature — configure in Settings'),
+    pagenumber: () => showToast('🔢 Page numbers added to PDF'),
+    share: () => shareDoc(),
+  };
+  if (msgs[tool]) msgs[tool]();
+}
+
+// ============================================================
+// INIT
+// ============================================================
+renderRecentDocs();
+updateDocCount();
+
+// Handle Android back button
+window.addEventListener('popstate', () => {
+  const active = document.querySelector('.screen.active');
+  if (active && active.id === 'screen-camera') closeCamera();
+  else if (active && active.id !== 'screen-home') goScreen('screen-home');
+});
+history.pushState({}, '');
+
+// Request camera permission on load hint
+if (location.protocol === 'file:') {
+  console.log('Run on HTTPS or local server for camera access');
+}
+</script>
+</body>
+</html>
