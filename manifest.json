@@ -1,1 +1,18 @@
-
+{
+  "name": "DocScan AI – PDF Scanner & OCR",
+  "short_name": "DocScan AI",
+  "description": "Scan documents to PDF with AI OCR",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0c14",
+  "theme_color": "#4f8ef7",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
